@@ -61,16 +61,18 @@ def adapt_run(system, cfg, setting, eta, n_s, r, seed, Kc, downs):
     for A, B, Q, R in downs:
         Ac = A + B @ Kc
         if setting == "scratch":
-            c = _cfg(cfg["base"], {}, gamma0=auto_gamma0(lqr.spectral_radius(A), 1.0), eta=eta,
+            c = _cfg(cfg["base"], {k: v for k, v in cfg["adapt"][setting].items() if k == "n_c"},
+                     gamma0=auto_gamma0(lqr.spectral_radius(A), 1.0), eta=eta,
                      n_s=n_s, r=r, eps=cfg["eps"], log_grad_error=False)
             o = discount_method(Problem(A[None], B[None], Q[None], R[None]), c, rng)
         else:
-            c = _cfg(cfg["base"], {}, gamma0=auto_gamma0(lqr.spectral_radius(Ac), 1.0), eta=eta,
+            c = _cfg(cfg["base"], {k: v for k, v in cfg["adapt"][setting].items() if k == "n_c"},
+                     gamma0=auto_gamma0(lqr.spectral_radius(Ac), 1.0), eta=eta,
                      n_s=n_s, r=r, eps=cfg["eps"], log_grad_error=False)
             if setting == "lora":
                 ell_bar = lqr.num_unstable(Ac)
-                o = adapt_low_rank(A, B, Q, R, Kc, ell_bar, c, max(cfg["adj_restarts"], ell_bar),
-                                   cfg["adj_horizon"], rng)
+                T = cfg["adapt"].get("adj_horizon", cfg["adj_horizon"])
+                o = adapt_low_rank(A, B, Q, R, Kc, ell_bar, c, max(cfg["adj_restarts"], ell_bar), T, rng)
             else:
                 o = discount_method(Problem(A[None], B[None], Q[None], R[None], Kbase=Kc[None]), c, rng)
         res.append(o)

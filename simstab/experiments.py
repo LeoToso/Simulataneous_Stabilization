@@ -97,7 +97,7 @@ def run_adaptation(fam, cfg, Kc, rng, verbose=False, seed=0):
             systems.append((A[0], B[0], Q[0], R[0]))
     out = dict(n_found=len(systems), tries=tries, lora=[], finetune=[], scratch=[], ell_bar=[],
                rho_c=[])
-    m, T = cfg["adj_restarts"], cfg["adj_horizon"]
+    m, T = cfg["adj_restarts"], ad.get("adj_horizon", cfg["adj_horizon"])
     for i, (A, B, Q, R) in enumerate(systems):
         Ac = A + B @ Kc
         rho_c = lqr.spectral_radius(Ac)

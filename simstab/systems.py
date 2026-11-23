@@ -74,9 +74,9 @@ def _cartpole(rng, regime, dt=0.25, g=9.8):
         mp = 0.5 + 0.1 * rng.random()
         ell = 0.75 + 0.1 * rng.random()
     else:  # heavier pole on a lighter cart, shorter pole
-        mc = 0.7 + 0.1 * rng.random()
-        mp = 0.9 + 0.2 * rng.random()
-        ell = 0.45 + 0.1 * rng.random()
+        mc = 0.9 + 0.1 * rng.random()
+        mp = 0.6 + 0.1 * rng.random()
+        ell = 0.68 + 0.05 * rng.random()
     Ac = np.array([[0.0, 1.0, 0.0, 0.0],
                    [0.0, 0.0, (mp / mc) * g, 0.0],
                    [0.0, 0.0, 0.0, 1.0],
@@ -132,11 +132,16 @@ def _launch(rng, regime, dt=0.25):
 # n_unstable bending modes buckle. Nominal parameters reproduce the paper's spectrum
 # (unstable eigenvalue 1.129; slowest stable 0.874 and 0.581 +- 0.633j) and |B| = 2.14,
 # which is normalized to 1 (input in units of 2.14^-1 N m).
+# Options kept for exploration (not used by the experiments): n_unstable > 1 with
+# unstable_targets places the buckling modes as in the arm paper's Sec. 6.4, and n_inputs > 1
+# splits the torque into groups of joints. With three buckling modes the reduced LQR cost is
+# 1e6-1e8 for every actuator layout tried (the modes are nearly jointly uncontrollable), so the
+# discount schedule (alpha ~ q / 2J) would need ~1e6 iterations; such a system is not included.
 # ---------------------------------------------------------------------------
 
 def flexible_arm(n_sections=20, sec_len=0.05, sec_mass=0.04, g=9.81, c0=0.4, c1=0.02,
                  k_spread=(1.0, 1.5), n_unstable=1, kappa_frac=0.5, dt=0.05,
-                 b_scale=None):
+                 b_scale=None, unstable_targets=None, n_inputs=1):
     ns = n_sections
     S = np.tril(np.ones((ns, ns)))
     J = np.tril(np.full((ns, ns), sec_len), -1) + np.eye(ns) * sec_len / 2
@@ -148,10 +153,25 @@ def flexible_arm(n_sections=20, sec_len=0.05, sec_mass=0.04, g=9.81, c0=0.4, c1=
     ev = np.sort(sla.eigh(G, K0, eigvals_only=True))[::-1]
     kappa = (1 - kappa_frac) * ev[n_unstable - 1] + kappa_frac * ev[n_unstable]
     K_eff = kappa * K0 - G
+    if unstable_targets is not None:
+        # Modal stiffness placement (arm paper, Sec. 6.4): in mass-normalized modal coordinates
+        # q'' + (c0 + c1 k) q' + k q = ..., the buckling mode with stiffness k < 0 has the
+        # unstable root s = log(lambda)/dt when k = -(s^2 + c0 s) / (1 + c1 s).
+        w, V = sla.eigh(K_eff, M)                     # V^T M V = I, ascending: buckling first
+        for i, lam in enumerate(sorted(unstable_targets, reverse=True)):
+            s_ = np.log(lam) / dt
+            w[i] = -(s_ ** 2 + c0 * s_) / (1 + c1 * s_)
+        MV = M @ V
+        K_eff = MV @ np.diag(w) @ MV.T
     C_d = c0 * M + c1 * K_eff
     Mi = np.linalg.inv(M)
     Ac = np.block([[np.zeros((ns, ns)), np.eye(ns)], [-Mi @ K_eff, -Mi @ C_d]])
-    Bc = np.vstack([np.zeros((ns, 1)), Mi @ np.ones((ns, 1))])
+    # n_inputs = 1: the same torque at every joint (arm paper). n_inputs = p > 1: p torques, each
+    # applied to the joints of one of p consecutive groups (lower, middle, upper part of the arm).
+    G = np.zeros((ns, n_inputs))
+    for k, idx in enumerate(np.array_split(np.arange(ns), n_inputs)):
+        G[idx, k] = 1.0
+    Bc = np.vstack([np.zeros((ns, n_inputs)), Mi @ G])
     A, B = c2d_zoh(Ac, Bc, dt)
     if b_scale is None:
         b_scale = np.linalg.norm(B, 2)
@@ -161,12 +181,19 @@ def flexible_arm(n_sections=20, sec_len=0.05, sec_mass=0.04, g=9.81, c0=0.4, c1=
 _ARM_NOMINAL_B = {}
 
 
-def _arm_sampler(n_unstable):
+def _arm_sampler(n_unstable, targets=None, n_inputs=1):
+    key = (n_unstable, n_inputs)
+
     def sampler(rng, regime):
         u = rng.uniform
-        if n_unstable not in _ARM_NOMINAL_B:
-            _, Bn = flexible_arm(n_unstable=n_unstable, b_scale=1.0)
-            _ARM_NOMINAL_B[n_unstable] = np.linalg.norm(Bn, 2)
+        if key not in _ARM_NOMINAL_B:
+            _, Bn = flexible_arm(n_unstable=n_unstable, b_scale=1.0, n_inputs=n_inputs,
+                                 unstable_targets=targets)
+            _ARM_NOMINAL_B[key] = np.linalg.norm(Bn, 2)
+        extra = {}
+        if targets is not None:
+            spread = (0.99, 1.01) if regime == "train" else (1.02, 1.04)
+            extra["unstable_targets"] = [t * u(*spread) for t in targets]
         if regime == "train":
             p = dict(sec_len=0.05 * u(0.97, 1.03), sec_mass=0.04 * u(0.9, 1.1),
                      c0=0.4 * u(0.9, 1.1), c1=0.02 * u(0.9, 1.1),
@@ -175,7 +202,8 @@ def _arm_sampler(n_unstable):
             p = dict(sec_len=0.05 * u(1.05, 1.10), sec_mass=0.04 * u(1.3, 1.5),
                      c0=0.4 * u(0.5, 0.7), c1=0.02 * u(0.5, 0.7),
                      kappa_frac=u(0.7, 0.85))
-        return flexible_arm(n_unstable=n_unstable, b_scale=_ARM_NOMINAL_B[n_unstable], **p)
+        return flexible_arm(n_unstable=n_unstable, b_scale=_ARM_NOMINAL_B[key], n_inputs=n_inputs,
+                            **p, **extra)
     return sampler
 
 
@@ -192,9 +220,6 @@ FAMILIES: Dict[str, Callable[[], Family]] = {
     "flexarm": lambda: Family(
         "flexarm", 40, 1, 1, _arm_sampler(1), np.eye(40), np.eye(1),
         "Flexible arm, 20-section bar chain, ZOH dt=0.05, 1 unstable mode"),
-    "flexarm3": lambda: Family(
-        "flexarm3", 40, 1, 3, _arm_sampler(3), np.eye(40), np.eye(1),
-        "Flexible arm, 20-section bar chain, ZOH dt=0.05, 3 unstable modes"),
 }
 
 

@@ -15,7 +15,6 @@ python run.py --system pendulum  --out results/pendulum
 python run.py --system cartpole  --out results/cartpole
 python run.py --system launch    --out results/launch
 python run.py --system flexarm   --out results/flexarm
-python run.py --system flexarm3  --out results/flexarm3     # flexible arm, 3 unstable modes
 
 bash run_all.sh --seeds 10 --workers 16                      # all of them
 ```
@@ -30,10 +29,9 @@ Options: `--seeds` (default 10), `--workers` (parallel seeds, default all cores)
 | name | model | d_X | d_U | unstable modes ℓ |
 |---|---|---|---|---|
 | `pendulum` | inverted pendulum, Euler dt = 0.25, random mass/length (as in the notebook) | 2 | 1 | 1 |
-| `cartpole` | cart-pole, Euler dt = 0.25, random masses/length, Q = 100 I, R = 0.1 I (as in the notebook) | 4 | 1 | 3 (one at 1.06–1.1 in modulus... see below) |
+| `cartpole` | cart-pole, Euler dt = 0.25, random masses/length, Q = 100 I, R = 0.1 I (as in the notebook) | 4 | 1 | 3 (see below) |
 | `launch` | launch-vehicle pitch plane (Wie, Du, Whorton 2008), ZOH dt = 0.25 (as in the notebook) | 3 | 1 | 2 |
 | `flexarm` | flexible arm, 20-section Hencky bar chain (Lutkus, Lindemann, Tu, arXiv:2610.40931, Sec. 6.1), ZOH dt = 0.05 | 40 | 1 | 1 |
-| `flexarm3` | same arm, stiffness placed so that three bending modes buckle (their Sec. 6.4) | 40 | 1 | 3 |
 
 * Cart-pole: the Euler double integrator of the cart gives a double eigenvalue at exactly 1.
   As in the notebook, the "unstable" subspace counts |λ| ≥ 1, so ℓ = 3 (pendulum mode + cart).
@@ -43,9 +41,13 @@ Options: `--seeds` (default 10), `--workers` (parallel seeds, default all cores)
   (c0, c1) = (0.4, 0.02), ZOH at 0.05 s, B normalized to ‖B‖ = 1. The nominal arm reproduces
   the reported spectrum exactly (unstable 1.129; slowest stable 0.874 and 0.581 ± 0.633j;
   ‖B‖ = 2.14 before normalization). Tasks perturb section length (±3%), mass (±10%), damping
-  (±10%) and the position of κ in its interval (40–60%). For `flexarm3`, κ lies between the
-  third and fourth generalized eigenvalues; the unstable eigenvalues (about 1.7, 1.5, 1.19)
-  are larger than the arm paper's (1.15, 1.12, 1.09), which tunes modal stiffnesses by hand.
+  (±10%) and the position of κ in its interval (40–60%); the unstable eigenvalue ranges over
+  1.115–1.145 and every task keeps 39 stable modes (slowest about 0.88).
+* A three-unstable-mode arm (the arm paper's Sec. 6.4) can be built with
+  `flexible_arm(n_unstable=3, unstable_targets=(1.15, 1.12, 1.09))`, which reproduces that
+  spectrum exactly. It is not included as an experiment: with one input (or 3–4 joint torques)
+  the three buckling modes are nearly jointly uncontrollable, the optimal reduced LQR cost is
+  10⁶–10⁸, and the discount schedule (α ≈ q / 2J per iteration) would need about 10⁶ iterations.
 * `downstream` regime (adaptation experiment): a shifted parameter range per system
   (shorter/heavier pendulum, heavier pole, max-q-like launch conditions, heavier and less
   damped arm). Only downstream systems that the common controller K_c does **not** stabilize

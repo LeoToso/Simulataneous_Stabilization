@@ -3,6 +3,6 @@
 # Usage: bash run_all.sh [extra run.py options, e.g. --seeds 10 --workers 16]
 set -euo pipefail
 cd "$(dirname "$0")"
-for sys in pendulum cartpole launch flexarm flexarm3; do
+for sys in pendulum cartpole launch flexarm; do
     python run.py --system "$sys" --out "results/$sys" "$@"
 done

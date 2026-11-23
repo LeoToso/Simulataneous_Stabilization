@@ -5,7 +5,6 @@
     python run.py --system cartpole   --out results/cartpole
     python run.py --system launch     --out results/launch
     python run.py --system flexarm    --out results/flexarm
-    python run.py --system flexarm3   --out results/flexarm3      (3 unstable bending modes)
 
 Options: --seeds 10 --workers 10 --H 50 --quick (small smoke test) --verbose
          --set single.eta=1e-3 --set base.tau=200 ... (override any config entry)

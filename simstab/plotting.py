@@ -233,6 +233,8 @@ def summarize(results, cfg, outdir, extra=None):
                         success_rate=float(np.mean([x["stabilized"] for x in runs])) if runs else None,
                         samples=_stats([x["total_samples"] for x in runs if x["stabilized"]]),
                         discount_iterations=_stats([x["iterations"] for x in runs if x["stabilized"]]))
+        A["lora_subspace_err"] = _stats([x.get("subspace_err") for r in results if "adapt" in r
+                                         for x in r["adapt"]["lora"] if x])
         A["ell_bar"] = [int(v) for r in results if "adapt" in r for v in r["adapt"]["ell_bar"]]
         A["rho_c"] = [float(v) for r in results if "adapt" in r for v in r["adapt"]["rho_c"]]
         A["n_downstream_found"] = [int(r["adapt"]["n_found"]) for r in results if "adapt" in r]
