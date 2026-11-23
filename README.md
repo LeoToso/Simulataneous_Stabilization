@@ -25,9 +25,11 @@ Options: `--seeds` (default 10), `--workers` (parallel seeds, default all cores)
 `--replot` (redraw figures from `results/<system>/results.pkl`), `--verbose`.
 
 One seed runs single-core. Measured times per seed: pendulum about 1 min, launch vehicle under
-1 min, cart-pole about 3 min. The flexible arm is much heavier, roughly 1–3 h per seed: about
-650 two-point pairs per estimate for single-task, and H = 50 with 14 pairs each for multitask,
-over thousands of discount iterations. Run it with one worker per seed.
+1 min, cart-pole about 3 min, flexible arm about 1.5 h with two downstream systems, most of it in the from-scratch
+adaptation baseline. The arm is heavy because single-task needs about 720
+two-point pairs per estimate, multitask H = 50 × 15, over 1,200–2,600 discount iterations, and
+the from-scratch adaptation baseline about 1,400 pairs over 3,200 iterations. Use one worker
+per seed (`--workers` = number of seeds).
 
 ## Results with the shipped configuration
 
@@ -41,9 +43,11 @@ per system (state transitions):
 | pendulum | 1.58e6 | 7.33e5 (2.2×) | 7.00e5 (2.3×) | 5.2e3 | 4.4e4 | 1.0e6 |
 | cart-pole | 1.30e7 | 1.69e6 (7.7×) | 8.18e5 (16×) | 8.1e4 | 1.2e6 | 3.1e6 |
 | launch vehicle | 6.86e5 | 1.84e5 (3.7×) | 8.14e4 (8.4×) | 8.8e4 | 1.3e5 | 3.4e5 |
-| flexible arm* | 7.3e8 | 3.4e7 (21×) | 1.8e6 (400×) | 3.5e5 | 8.3e6 | (not tuned) |
+| flexible arm* | 7.95e8 | 3.65e7 (22×) | 1.77e6 (450×) | 2.1e5 | 1.3e7 | 4.1e9 |
 
-\* Flexible arm: medians over the 2–3 tuning seeds of `tune.py`, not a `run.py` run.
+\* Flexible arm: one seed and two downstream systems (`run.py --seeds 1 --set adapt.n_down=2`,
+84 min on one core). Everything stabilized. The from-scratch step size on the arm
+(η = 3e-5 with accuracy-matched n_s ≈ 1400) was not grid-tuned.
 
 Where the gains come from:
 
