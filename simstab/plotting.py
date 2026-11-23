@@ -162,7 +162,7 @@ def plot_adaptation(results, outdir):
         _finish(ax, field, "samples")
         if field == "rho1":
             ax.set_ylabel(r"$\rho(A^{(h)}+B^{(h)}K_{h,j})$, downstream system")
-    axes[0].legend()
+    axes[0].legend(loc="lower right")
     fig.savefig(os.path.join(outdir, "fig_adaptation.pdf"))
     fig.savefig(os.path.join(outdir, "fig_adaptation.png"), dpi=150)
     plt.close(fig)

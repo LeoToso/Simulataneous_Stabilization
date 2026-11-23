@@ -60,7 +60,8 @@ CONFIGS = {
                     tune_etas=(1e-3, 3e-3, 1e-2, 3e-2)),
     "flexarm": _make(ell=1, tau=150, eps=0.5, adj_horizon=30, adapt_adj_horizon=300, nc_adapt=50,
                      eta_single=1e-4, eta_multi=1e-4, eta_sub=1e-2,
-                     eta_lora=1e-2, eta_finetune=1e-4, eta_scratch=1e-4,
+                     eta_lora=1e-3, eta_finetune=1e-5, ns_finetune=10, r_finetune=0.01,
+                     eta_scratch=3e-5, ns_scratch="auto",
                      tune_etas=(3e-5, 1e-4, 3e-4, 1e-3, 3e-3, 1e-2, 3e-2)),
 }
 

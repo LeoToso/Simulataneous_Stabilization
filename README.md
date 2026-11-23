@@ -24,6 +24,43 @@ Options: `--seeds` (default 10), `--workers` (parallel seeds, default all cores)
 `--set key=value` (override any config entry, e.g. `--set single.eta=1e-3 --set base.tau=200`),
 `--replot` (redraw figures from `results/<system>/results.pkl`), `--verbose`.
 
+One seed runs single-core. Measured times per seed: pendulum about 1 min, launch vehicle under
+1 min, cart-pole about 3 min. The flexible arm is much heavier, roughly 1–3 h per seed: about
+650 two-point pairs per estimate for single-task, and H = 50 with 14 pairs each for multitask,
+over thousands of discount iterations. Run it with one worker per seed.
+
+## Results with the shipped configuration
+
+Pendulum, cart-pole and launch vehicle: `run.py --seeds 5`, H = 50, 15 downstream systems for
+adaptation. All runs reached γ = 1 with a stabilizing controller, every training system and
+every held-out system was stabilized, and every adaptation run succeeded. Medians of the samples
+per system (state transitions):
+
+| system | single task, all modes | multitask, all modes | multitask, unstable modes | low-rank adaptation | full-rank fine-tuning | from scratch |
+|---|---|---|---|---|---|---|
+| pendulum | 1.58e6 | 7.33e5 (2.2×) | 7.00e5 (2.3×) | 5.2e3 | 4.4e4 | 1.0e6 |
+| cart-pole | 1.30e7 | 1.69e6 (7.7×) | 8.18e5 (16×) | 8.1e4 | 1.2e6 | 3.1e6 |
+| launch vehicle | 6.86e5 | 1.84e5 (3.7×) | 8.14e4 (8.4×) | 8.8e4 | 1.3e5 | 3.4e5 |
+| flexible arm* | 7.3e8 | 3.4e7 (21×) | 1.8e6 (400×) | 3.5e5 | 8.3e6 | (not tuned) |
+
+\* Flexible arm: medians over the 2–3 tuning seeds of `tune.py`, not a `run.py` run.
+
+Where the gains come from:
+
+* **Collaboration.** The accuracy-matched batch shrinks with H. For example, on cart-pole
+  single-task needs n_s ≈ 28 pairs per system, against n_s = 1 for multitask; on the arm it is
+  650 against 14. The multitask discount schedule is somewhat slower, because γ follows the
+  worst system's α. The net effect is the 2–21× reduction above.
+* **Unstable subspace.** The parameter dimension drops from d_U d_X to d_U ℓ (n_s = 1 suffices),
+  and the projected cost only counts the unstable modes. That gives larger α and fewer discount
+  iterations: on the arm, the full-state cost is dominated by 39 slow stable modes.
+* **Low-rank adaptation.** It starts from γ_{h,0} = 0.9 / ρ(A + B K_c)², close to 1, and learns
+  d_U ℓ̄_h parameters. Its two-point perturbations stay in the stable neighbourhood of K_c.
+  Full-rank fine-tuning needs a much smaller radius and step there (its first update
+  diverged on some systems with the radius and step that work for LoRA).
+
+The pendulum has d_X = 2 and ℓ = 1, so the subspace adds little over collaboration there.
+
 ## Systems (`simstab/systems.py`)
 
 | name | model | d_X | d_U | unstable modes ℓ |
@@ -91,8 +128,10 @@ All settings share N = 3, n_c = 5, r = 0.05, ξ = 0.5, τ and γ_0 = 0.9 / max_h
   the batch rule of Lemma .9 (H n_s ≳ d/ε²). It is how collaboration (H) and the shared subspace
   (d = d_U ℓ instead of d_U d_X) enter the sample complexity. The chosen n_s is stored per run.
 * **Step size η** — per setting, since the admissible step depends on the parametrization's
-  Lipschitz constant. The values in `configs.py` are the most sample-efficient ones found by
-  `tune.py` (each tuning seed had to stabilize). Re-tune on your machine with:
+  Lipschitz constant. The values in `configs.py` come from `tune.py` grids (the run must
+  stabilize on every tuning seed). The value kept is one grid step below the largest stable step,
+  because that step sits at the edge of divergence near γ = 1 and occasionally failed on new
+  seeds. Re-tune on your machine with:
 
 ```bash
 python tune.py --system flexarm --seeds 3 --workers 16                          # main settings
@@ -100,11 +139,20 @@ python tune.py --system flexarm --settings lora,finetune,scratch --ns 1,3,10 --r
 ```
 
   then pass the printed `--set ...` options to `run.py` or edit `configs.py`.
-* **Adaptation**: fixed n_s per method (1 by default) with tuned η; full-rank fine-tuning also
-  needs a smaller smoothing radius (`r = 0.01`). With r = 0.05 its two-point perturbations of
-  K_c leave the damped-stable neighbourhood (the condition r√d < ν_K fails), and the estimate is
-  badly biased. Low-rank adaptation does not have this problem, since it only perturbs along the
-  residual unstable directions.
+* **Adaptation**: fixed n_s per method (1 by default) with tuned η and smoothing radius r, and a
+  common n_c = 20 (50 on the arm) for all three methods.
+  * Each method adapts one system, so the discount update has no min over h. With n_c = 5, a
+    cost underestimate sometimes ended the schedule early with ρ > 1 (Lemma .24 asks for
+    n_c ∝ μ₀⁴ with μ₀² = d_X).
+  * Full-rank fine-tuning needs a small radius (r = 0.01) and a small first step. Otherwise its
+    perturbations of K_c leave the damped-stable neighbourhood (r√d < ν_K fails) and the first
+    update diverges. Low-rank adaptation perturbs only along the residual unstable directions.
+  * The residual representation uses a longer adjoint horizon (100, and 300 on the arm), since
+    the gap between the residual unstable mode and the slowest stable mode can be small
+    (Theorem .3: T ≳ log(·) / log(α/β)).
+* **Downstream systems**: shifted parameter ranges chosen so that K_c leaves a mildly unstable
+  residual (pendulum: ρ(A + B K_c) up to about 1.4; launch: up to 1.2; cart-pole: 1.02–1.7;
+  arm: 1.00–1.03). The open-loop downstream systems have ρ(A) of 2.1, 2.0–2.4, 2.2 and 1.16.
 
 ## Outputs (`results/<system>/`)
 
