@@ -150,6 +150,46 @@ def plot_main(results, outdir, H):
     plt.close(fig)
 
 
+SYSTEM_NAMES = {"pendulum": "Inverted pendulum", "cartpole": "Cart-pole",
+                "launch": "Launch vehicle", "flexarm": "Flexible arm"}
+
+
+def plot_four_panel(results, outdir, H, system=None):
+    """The main figure of a system, 2 x 2:
+    (a) discount factor and (b) spectral radius of system 1 vs samples per system, for the
+    three settings; (c) discount factor and (d) spectral radius of the downstream system vs
+    samples, for the three adaptation methods. Written to fig_<system>.pdf / .png."""
+    main = {k: [r[k] for r in results if k in r] for k in MAIN}
+    adapt = {k: [run for r in results if "adapt" in r for run in r["adapt"][k] if run] for k in ADAPT}
+    has_adapt = any(adapt.values())
+    fig, axes = plt.subplots(2 if has_adapt else 1, 2, figsize=(16, 11 if has_adapt else 5.5),
+                             squeeze=False)
+    grid = _sample_grid(main.values())
+    for field, ax in zip(("gamma", "rho1"), axes[0]):
+        for k in MAIN:
+            _curve(ax, main[k], k, field, H, "samples", grid)
+        _finish(ax, field, "samples")
+    axes[0, 0].legend(loc="center left", bbox_to_anchor=(0.0, 0.42), fontsize=11)
+    if has_adapt:
+        grid = _sample_grid([g for g in adapt.values() if g])
+        for field, ax in zip(("gamma", "rho1"), axes[1]):
+            for k in ADAPT:
+                _curve(ax, adapt[k], k, field, 1, "samples", grid)
+            _finish(ax, field, "samples")
+        axes[1, 1].set_ylabel(r"$\rho(A^{(h)}+B^{(h)}K_{h,j})$, downstream system")
+        axes[1, 0].legend(loc="center left", bbox_to_anchor=(0.0, 0.33), fontsize=11)
+    for i, ax in enumerate(axes.ravel()):
+        ax.set_title(f"({'abcd'[i]})", loc="left", fontsize=15)
+    if system:
+        fig.suptitle(SYSTEM_NAMES.get(system, system), fontsize=18)
+    fig.tight_layout()
+    name = f"fig_{system}" if system else "fig_main"
+    fig.savefig(os.path.join(outdir, name + ".pdf"))
+    fig.savefig(os.path.join(outdir, name + ".png"), dpi=150)
+    plt.close(fig)
+    return name
+
+
 def plot_adaptation(results, outdir):
     groups = {k: [run for r in results if "adapt" in r for run in r["adapt"][k] if run] for k in ADAPT}
     if not any(groups.values()):

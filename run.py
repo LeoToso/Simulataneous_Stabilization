@@ -8,7 +8,7 @@
 
 Options: --seeds 10 --workers 10 --H 50 --quick (small smoke test) --verbose
          --set single.eta=1e-3 --set base.tau=200 ... (override any config entry)
-         --replot (redraw figures from results.pkl)
+         --replot (redraw figures from results.pkl)  --all-figures (individual figures too)
 """
 import os
 
@@ -56,6 +56,10 @@ def main():
     ap.add_argument("--no-adapt", action="store_true", help="skip the adaptation experiment")
     ap.add_argument("--set", action="append", help="override, e.g. single.eta=1e-3")
     ap.add_argument("--replot", action="store_true")
+    ap.add_argument("--all-figures", action="store_true",
+                    help="also write the individual figures (iterations axis, max_h rho, gradient "
+                         "error, sample-complexity bars, subspace vs T); default: only the "
+                         "four-panel figure fig_<system>.pdf")
     ap.add_argument("--verbose", action="store_true")
     args = ap.parse_args()
 
@@ -100,14 +104,16 @@ def main():
             pickle.dump(dict(results=results, extra=extra, config=cfg), f)
         print(f"[{args.system}] all runs finished in {time.time() - t0:.0f}s", flush=True)
 
-    plotting.plot_main(results, out, cfg["H"])
-    plotting.plot_adaptation(results, out)
-    plotting.plot_grad_vs_H(extra["grad_error_vs_H"], out)
-    plotting.plot_subspace_vs_T(extra["subspace_vs_T"], out)
+    name = plotting.plot_four_panel(results, out, cfg["H"], args.system)
+    if args.all_figures:
+        plotting.plot_main(results, out, cfg["H"])
+        plotting.plot_adaptation(results, out)
+        plotting.plot_grad_vs_H(extra["grad_error_vs_H"], out)
+        plotting.plot_subspace_vs_T(extra["subspace_vs_T"], out)
     plotting.summarize(results, cfg, out, dict(grad_error_vs_H=extra["grad_error_vs_H"]))
     with open(os.path.join(out, "summary.md")) as f:
         print(f.read())
-    print(f"figures written to {out}/")
+    print(f"figure written to {out}/{name}.pdf" + (" (and the individual figures)" if args.all_figures else ""))
 
 
 if __name__ == "__main__":
