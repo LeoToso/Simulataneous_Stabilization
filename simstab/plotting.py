@@ -16,7 +16,7 @@ STYLE = {
     "subspace": dict(color="tab:blue",   label="Unstable modes, multiple systems $H={H}$"),
     "lora":     dict(color="tab:green",  label=r"Low-rank adaptation of $K_c$ (rank $\bar\ell_h$)"),
     "finetune": dict(color="tab:red",    label=r"Full-rank fine-tuning of $K_c$"),
-    "scratch":  dict(color="tab:gray",   label="From scratch (single system)"),
+    "scratch":  dict(color="purple",     label="From scratch (single system)"),
 }
 MAIN = ("single", "multi", "subspace")
 ADAPT = ("lora", "finetune", "scratch")
