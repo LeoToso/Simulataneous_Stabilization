@@ -52,7 +52,7 @@ def _iter_band(runs, field, n, hold=True):
     return np.nanmedian(Y, 0), np.nanpercentile(Y, 10, 0), np.nanpercentile(Y, 90, 0)
 
 
-def _curve(ax, runs, key, field, H, xaxis, xgrid=None, n_iter=None):
+def _curve(ax, runs, key, field, H, xaxis, xgrid=None, n_iter=None, label=None):
     if not runs:
         return
     st = STYLE[key]
@@ -62,7 +62,7 @@ def _curve(ax, runs, key, field, H, xaxis, xgrid=None, n_iter=None):
     else:
         med, lo, hi = _iter_band(runs, field, n_iter)
         x = np.arange(n_iter)
-    ax.plot(x, med, color=st["color"], label=_label(key, H))
+    ax.plot(x, med, color=st["color"], label=label or _label(key, H))
     if len(runs) > 1:
         ax.fill_between(x, lo, hi, color=st["color"], alpha=0.2, lw=0)
 
@@ -154,35 +154,52 @@ SYSTEM_NAMES = {"pendulum": "Inverted pendulum", "cartpole": "Cart-pole",
                 "launch": "Launch vehicle", "flexarm": "Flexible arm"}
 
 
+# Curves and short legend labels of the adaptation panels of the main figure.
+PANEL_ADAPT = {"lora": "Low-rank adaptation", "scratch": "From scratch"}
+PANEL_FONTS = dict(label=22, ticks=19, legend=18, title=22, suptitle=24)
+
+
 def plot_four_panel(results, outdir, H, system=None):
-    """The main figure of a system, 2 x 2:
+    """The main figure of a system, four panels in a row:
     (a) discount factor and (b) spectral radius of system 1 vs samples per system, for the
     three settings; (c) discount factor and (d) spectral radius of the downstream system vs
-    samples, for the three adaptation methods. Written to fig_<system>.pdf / .png."""
+    samples, for low-rank adaptation and learning from scratch. Written to fig_<system>.pdf/.png."""
+    F = PANEL_FONTS
     main = {k: [r[k] for r in results if k in r] for k in MAIN}
-    adapt = {k: [run for r in results if "adapt" in r for run in r["adapt"][k] if run] for k in ADAPT}
+    adapt = {k: [run for r in results if "adapt" in r for run in r["adapt"][k] if run]
+             for k in PANEL_ADAPT}
     has_adapt = any(adapt.values())
-    fig, axes = plt.subplots(2 if has_adapt else 1, 2, figsize=(16, 11 if has_adapt else 5.5),
-                             squeeze=False)
+    n = 4 if has_adapt else 2
+    fig, axes = plt.subplots(1, n, figsize=(8 * n, 7))
     grid = _sample_grid(main.values())
-    for field, ax in zip(("gamma", "rho1"), axes[0]):
+    for field, ax in zip(("gamma", "rho1"), axes[:2]):
         for k in MAIN:
             _curve(ax, main[k], k, field, H, "samples", grid)
         _finish(ax, field, "samples")
-    axes[0, 0].legend(loc="center left", bbox_to_anchor=(0.0, 0.42), fontsize=11)
     if has_adapt:
         grid = _sample_grid([g for g in adapt.values() if g])
-        for field, ax in zip(("gamma", "rho1"), axes[1]):
-            for k in ADAPT:
-                _curve(ax, adapt[k], k, field, 1, "samples", grid)
+        for field, ax in zip(("gamma", "rho1"), axes[2:]):
+            for k, lbl in PANEL_ADAPT.items():
+                _curve(ax, adapt[k], k, field, 1, "samples", grid, label=lbl)
             _finish(ax, field, "samples")
-        axes[1, 1].set_ylabel(r"$\rho(A^{(h)}+B^{(h)}K_{h,j})$, downstream system")
-        axes[1, 0].legend(loc="center left", bbox_to_anchor=(0.0, 0.33), fontsize=11)
-    for i, ax in enumerate(axes.ravel()):
-        ax.set_title(f"({'abcd'[i]})", loc="left", fontsize=15)
+        axes[3].set_ylabel(r"$\rho(A^{(h)}+B^{(h)}K_{h,j})$")
+    for i, ax in enumerate(axes):
+        ax.set_title(f"({'abcd'[i]})", loc="left", fontsize=F["title"])
+        ax.xaxis.label.set_size(F["label"])
+        ax.yaxis.label.set_size(F["label"])
+        ax.tick_params(axis="both", which="major", labelsize=F["ticks"])
+        ax.set_xlabel("Samples per system")
     if system:
-        fig.suptitle(SYSTEM_NAMES.get(system, system), fontsize=18)
-    fig.tight_layout()
+        fig.suptitle(SYSTEM_NAMES.get(system, system), fontsize=F["suptitle"])
+    fig.tight_layout(rect=(0, 0.09, 1, 1))
+    # legends below the panels: settings under (a)-(b), adaptation methods under (c)-(d)
+    for pair, ncol in ((axes[:2], 3), (axes[2:4] if has_adapt else (), 2)):
+        if len(pair) == 0:
+            continue
+        h, l = pair[0].get_legend_handles_labels()
+        x0, x1 = pair[0].get_position().x0, pair[-1].get_position().x1
+        fig.legend(h, l, loc="lower center", bbox_to_anchor=((x0 + x1) / 2, 0.0), ncol=ncol,
+                   fontsize=F["legend"], frameon=False)
     name = f"fig_{system}" if system else "fig_main"
     fig.savefig(os.path.join(outdir, name + ".pdf"))
     fig.savefig(os.path.join(outdir, name + ".png"), dpi=150)
