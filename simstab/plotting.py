@@ -11,12 +11,12 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 
 STYLE = {
-    "single":   dict(color="purple",     label="All modes, single task"),
-    "multi":    dict(color="orange",     label="All modes, multitask $H={H}$"),
-    "subspace": dict(color="tab:blue",   label="Unstable modes, multitask $H={H}$"),
+    "single":   dict(color="purple",     label="All modes, single system"),
+    "multi":    dict(color="orange",     label="All modes, multiple systems $H={H}$"),
+    "subspace": dict(color="tab:blue",   label="Unstable modes, multiple systems $H={H}$"),
     "lora":     dict(color="tab:green",  label=r"Low-rank adaptation of $K_c$ (rank $\bar\ell_h$)"),
     "finetune": dict(color="tab:red",    label=r"Full-rank fine-tuning of $K_c$"),
-    "scratch":  dict(color="tab:gray",   label="From scratch (single task)"),
+    "scratch":  dict(color="tab:gray",   label="From scratch (single system)"),
 }
 MAIN = ("single", "multi", "subspace")
 ADAPT = ("lora", "finetune", "scratch")
@@ -52,7 +52,7 @@ def _iter_band(runs, field, n, hold=True):
     return np.nanmedian(Y, 0), np.nanpercentile(Y, 10, 0), np.nanpercentile(Y, 90, 0)
 
 
-def _curve(ax, runs, key, field, H, xaxis, xgrid=None, n_iter=None, label=None):
+def _curve(ax, runs, key, field, H, xaxis, xgrid=None, n_iter=None, label=None, lw=None):
     if not runs:
         return
     st = STYLE[key]
@@ -62,7 +62,7 @@ def _curve(ax, runs, key, field, H, xaxis, xgrid=None, n_iter=None, label=None):
     else:
         med, lo, hi = _iter_band(runs, field, n_iter)
         x = np.arange(n_iter)
-    ax.plot(x, med, color=st["color"], label=label or _label(key, H))
+    ax.plot(x, med, color=st["color"], label=label or _label(key, H), lw=lw)
     if len(runs) > 1:
         ax.fill_between(x, lo, hi, color=st["color"], alpha=0.2, lw=0)
 
@@ -157,6 +157,7 @@ SYSTEM_NAMES = {"pendulum": "Inverted pendulum", "cartpole": "Cart-pole",
 # Curves and short legend labels of the adaptation panels of the main figure.
 PANEL_ADAPT = {"lora": "Low-rank adaptation", "scratch": "From scratch"}
 PANEL_FONTS = dict(label=22, ticks=19, legend=23)
+PANEL_LW = 4.5
 
 
 def plot_four_panel(results, outdir, H, system=None):
@@ -174,13 +175,13 @@ def plot_four_panel(results, outdir, H, system=None):
     grid = _sample_grid(main.values())
     for field, ax in zip(("gamma", "rho1"), axes[:2]):
         for k in MAIN:
-            _curve(ax, main[k], k, field, H, "samples", grid)
+            _curve(ax, main[k], k, field, H, "samples", grid, lw=PANEL_LW)
         _finish(ax, field, "samples")
     if has_adapt:
         grid = _sample_grid([g for g in adapt.values() if g])
         for field, ax in zip(("gamma", "rho1"), axes[2:]):
             for k, lbl in PANEL_ADAPT.items():
-                _curve(ax, adapt[k], k, field, 1, "samples", grid, label=lbl)
+                _curve(ax, adapt[k], k, field, 1, "samples", grid, label=lbl, lw=PANEL_LW)
             _finish(ax, field, "samples")
         axes[3].set_ylabel(r"$\rho(A^{(h)}+B^{(h)}K_{h,j})$")
     for i, ax in enumerate(axes):
