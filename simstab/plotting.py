@@ -156,7 +156,7 @@ SYSTEM_NAMES = {"pendulum": "Inverted pendulum", "cartpole": "Cart-pole",
 
 # Curves and short legend labels of the adaptation panels of the main figure.
 PANEL_ADAPT = {"lora": "Low-rank adaptation", "scratch": "From scratch"}
-PANEL_FONTS = dict(label=22, ticks=19, legend=18, title=22, suptitle=24)
+PANEL_FONTS = dict(label=22, ticks=19, legend=18)
 
 
 def plot_four_panel(results, outdir, H, system=None):
@@ -184,13 +184,10 @@ def plot_four_panel(results, outdir, H, system=None):
             _finish(ax, field, "samples")
         axes[3].set_ylabel(r"$\rho(A^{(h)}+B^{(h)}K_{h,j})$")
     for i, ax in enumerate(axes):
-        ax.set_title(f"({'abcd'[i]})", loc="left", fontsize=F["title"])
         ax.xaxis.label.set_size(F["label"])
         ax.yaxis.label.set_size(F["label"])
         ax.tick_params(axis="both", which="major", labelsize=F["ticks"])
         ax.set_xlabel("Samples per system")
-    if system:
-        fig.suptitle(SYSTEM_NAMES.get(system, system), fontsize=F["suptitle"])
     fig.tight_layout(rect=(0, 0.09, 1, 1))
     # legends below the panels: settings under (a)-(b), adaptation methods under (c)-(d)
     for pair, ncol in ((axes[:2], 3), (axes[2:4] if has_adapt else (), 2)):
