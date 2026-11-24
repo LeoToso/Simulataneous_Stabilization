@@ -190,14 +190,14 @@ def plot_four_panel(results, outdir, H, system=None):
         ax.tick_params(axis="both", which="major", labelsize=F["ticks"])
         ax.set_xlabel("Samples per system")
     fig.tight_layout(rect=(0, 0.11, 1, 1))
-    # legends below the panels: settings under (a)-(b), adaptation methods under (c)-(d)
-    for pair, ncol in ((axes[:2], 3), (axes[2:4] if has_adapt else (), 2)):
-        if len(pair) == 0:
-            continue
-        h, l = pair[0].get_legend_handles_labels()
-        x0, x1 = pair[0].get_position().x0, pair[-1].get_position().x1
-        fig.legend(h, l, loc="lower center", bbox_to_anchor=((x0 + x1) / 2, 0.0), ncol=ncol,
-                   fontsize=F["legend"], frameon=False)
+    # one legend centered below the whole figure: settings, then adaptation methods
+    handles, labels = [], []
+    for ax in (axes[0], axes[2]) if has_adapt else (axes[0],):
+        h, l = ax.get_legend_handles_labels()
+        handles += h
+        labels += l
+    fig.legend(handles, labels, loc="lower center", bbox_to_anchor=(0.5, 0.0), ncol=len(labels),
+               fontsize=F["legend"], frameon=False, columnspacing=1.5, handlelength=1.8)
     name = f"fig_{system}" if system else "fig_main"
     fig.savefig(os.path.join(outdir, name + ".pdf"))
     fig.savefig(os.path.join(outdir, name + ".png"), dpi=150)
